@@ -253,9 +253,19 @@ Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = ScreenGui
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = Frame
+local function CreateButton(text, size, pos, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = size
+    btn.Position = pos
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = color
+    btn.Parent = Frame
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    return btn
+end
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -30, 0, 30)
@@ -268,46 +278,11 @@ Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Frame
 
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 5)
-CloseBtn.Text = "X"
+local CloseBtn = CreateButton("X", UDim2.new(0, 30, 0, 30), UDim2.new(1, -35, 0, 5), Color3.fromRGB(50, 50, 50))
 CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-CloseBtn.Parent = Frame
-
-local UICornerClose = Instance.new("UICorner")
-UICornerClose.CornerRadius = UDim.new(0, 8)
-UICornerClose.Parent = CloseBtn
-
-local Button = Instance.new("TextButton")
-Button.Size = UDim2.new(0.8, 0, 0.3, 0)
-Button.Position = UDim2.new(0.1, 0, 0.45, 0)
-Button.Text = "FreeCam"
-Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-Button.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
-Button.Parent = Frame
-
-local UICornerBtn = Instance.new("UICorner")
-UICornerBtn.CornerRadius = UDim.new(0, 8)
-UICornerBtn.Parent = Button
-
--- Up / Down buttons
-local UpBtn = Instance.new("TextButton")
-UpBtn.Size = UDim2.new(0.35, 0, 0.2, 0)
-UpBtn.Position = UDim2.new(0.1, 0, 0.8, 0)
-UpBtn.Text = "Up"
-UpBtn.TextColor3 = Color3.fromRGB(255,255,255)
-UpBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 80)
-UpBtn.Parent = Frame
-
-local DownBtn = Instance.new("TextButton")
-DownBtn.Size = UDim2.new(0.35, 0, 0.2, 0)
-DownBtn.Position = UDim2.new(0.55, 0, 0.8, 0)
-DownBtn.Text = "Down"
-DownBtn.TextColor3 = Color3.fromRGB(255,255,255)
-DownBtn.BackgroundColor3 = Color3.fromRGB(160, 80, 80)
-DownBtn.Parent = Frame
+local Button = CreateButton("FreeCam", UDim2.new(0.8, 0, 0.3, 0), UDim2.new(0.1, 0, 0.45, 0), Color3.fromRGB(50, 100, 200))
+local UpBtn = CreateButton("Up", UDim2.new(0.35, 0, 0.2, 0), UDim2.new(0.1, 0, 0.8, 0), Color3.fromRGB(80, 160, 80))
+local DownBtn = CreateButton("Down", UDim2.new(0.35, 0, 0.2, 0), UDim2.new(0.55, 0, 0.8, 0), Color3.fromRGB(160, 80, 80))
 
 -- ==== FreeCam управление ====
 local camSpeed = 1
@@ -319,14 +294,14 @@ local yaw, pitch = 0, 0
 
 -- Анти-убийство
 humanoid.HealthChanged:Connect(function()
-	if controllingCamera then
-		humanoid.Health = humanoid.MaxHealth
-	end
+    if controllingCamera then
+        humanoid.Health = humanoid.MaxHealth
+    end
 end)
 
 -- Закрыть меню
 CloseBtn.MouseButton1Click:Connect(function()
-	ScreenGui.Enabled = not ScreenGui.Enabled
+    ScreenGui.Enabled = not ScreenGui.Enabled
 end)
 
 -- Кнопки вверх/вниз
@@ -335,107 +310,111 @@ UpBtn.MouseButton1Up:Connect(function() upPressed = false end)
 DownBtn.MouseButton1Down:Connect(function() downPressed = true end)
 DownBtn.MouseButton1Up:Connect(function() downPressed = false end)
 
--- Джойстик (эмуляция через TouchMoved)
+-- ==== Джойстик + камера для телефона ====
 local joystickCenter = nil
 local joystickRadius = 50
 local movingTouch = nil
+local joystickVisual = Instance.new("Frame")
+joystickVisual.Size = UDim2.new(0, joystickRadius*2, 0, joystickRadius*2)
+joystickVisual.BackgroundTransparency = 0.5
+joystickVisual.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+joystickVisual.Visible = false
+joystickVisual.Parent = ScreenGui
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1,0)
+corner.Parent = joystickVisual
 
 UserInputService.TouchStarted:Connect(function(touch)
-	if not joystickCenter then
-		joystickCenter = touch.Position
-		movingTouch = touch
-	end
+    if touch.Position.X < workspace.CurrentCamera.ViewportSize.X/2 then
+        -- Левая половина → джойстик
+        if not movingTouch then
+            movingTouch = touch
+            joystickCenter = touch.Position
+            joystickVisual.Position = UDim2.new(0, joystickCenter.X - joystickRadius, 0, joystickCenter.Y - joystickRadius)
+            joystickVisual.Visible = true
+        end
+    else
+        -- Правая половина → камера
+        lookDelta = Vector2.new()
+    end
 end)
 
 UserInputService.TouchMoved:Connect(function(touch)
-	if movingTouch and touch == movingTouch then
-		local offset = touch.Position - joystickCenter
-		if offset.Magnitude > joystickRadius then
-			offset = offset.Unit * joystickRadius
-		end
-		moveDir = Vector3.new(offset.X/joystickRadius, 0, offset.Y/joystickRadius)
-	end
+    if movingTouch and touch == movingTouch then
+        local offset = touch.Position - joystickCenter
+        if offset.Magnitude > joystickRadius then
+            offset = offset.Unit * joystickRadius
+        end
+        moveDir = Vector3.new(offset.X/joystickRadius, 0, offset.Y/joystickRadius)
+    elseif touch.Position.X > workspace.CurrentCamera.ViewportSize.X/2 then
+        lookDelta = Vector2.new(-touch.Delta.X, -touch.Delta.Y)
+    end
 end)
 
 UserInputService.TouchEnded:Connect(function(touch)
-	if movingTouch and touch == movingTouch then
-		moveDir = Vector3.new()
-		movingTouch = nil
-		joystickCenter = nil
-	end
-end)
-
--- Вращение камеры свайпом (вторая рука)
-UserInputService.InputChanged:Connect(function(input)
-	if controllingCamera and input.UserInputType == Enum.UserInputType.Touch then
-		if not movingTouch or input ~= movingTouch then
-			lookDelta = Vector2.new(-input.Delta.X, -input.Delta.Y)
-		end
-	end
+    if movingTouch and touch == movingTouch then
+        moveDir = Vector3.new()
+        movingTouch = nil
+        joystickCenter = nil
+        joystickVisual.Visible = false
+    end
 end)
 
 -- Основной цикл
 RunService.RenderStepped:Connect(function(dt)
-	if controllingCamera then
-		-- вращение камеры
-		if lookDelta.Magnitude > 0 then
-			yaw = yaw + lookDelta.X * 0.2
-			pitch = math.clamp(pitch + lookDelta.Y * 0.2, -80, 80)
-			lookDelta = Vector2.new()
-		end
+    if controllingCamera then
+        if lookDelta.Magnitude > 0 then
+            yaw = yaw + lookDelta.X * 0.2
+            pitch = math.clamp(pitch + lookDelta.Y * 0.2, -80, 80)
+            lookDelta = Vector2.new()
+        end
 
-		camRot = CFrame.Angles(0, math.rad(yaw), 0) * CFrame.Angles(math.rad(pitch), 0, 0)
+        camRot = CFrame.Angles(0, math.rad(yaw), 0) * CFrame.Angles(math.rad(pitch), 0, 0)
+        local move = Vector3.new()
+        if moveDir.Magnitude > 0 then
+            move = (camRot.RightVector * moveDir.X + camRot.LookVector * -moveDir.Z)
+        end
+        if upPressed then move = move + Vector3.new(0,1,0) end
+        if downPressed then move = move - Vector3.new(0,1,0) end
+        if move.Magnitude > 0 then
+            camPos = camPos + move.Unit * camSpeed
+        end
 
-		-- движение камеры относительно направления
-		local move = Vector3.new()
-		if moveDir.Magnitude > 0 then
-			move = (camRot.RightVector * moveDir.X + camRot.LookVector * -moveDir.Z)
-		end
-		if upPressed then move = move + Vector3.new(0,1,0) end
-		if downPressed then move = move - Vector3.new(0,1,0) end
+        camera.CFrame = CFrame.new(camPos) * camRot
 
-		if move.Magnitude > 0 then
-			camPos = camPos + move.Unit * camSpeed
-		end
-
-		camera.CFrame = CFrame.new(camPos) * camRot
-
-		-- ==== Персонаж позади камеры для третьего лица ====
-		local followOffset = camRot.LookVector * -5 + Vector3.new(0,2,0) -- 5 назад, 2 вверх
-		hrp.CFrame = CFrame.new(camPos + followOffset, camPos + camRot.LookVector * 5)
-
-		-- ==== Синхронизация части персонажа для взаимодействия ====
-		-- вперед от камеры для кликов/инструментов
-		local interactPos = camPos + camRot.LookVector * 2
-		-- HumanoidRootPart движется туда для серверного взаимодействия
-		hrp.CFrame = CFrame.new(interactPos, interactPos + camRot.LookVector)
-	end
+        -- Персонаж сзади камеры
+        local followOffset = camRot.LookVector * -5 + Vector3.new(0,2,0)
+        hrp.CFrame = CFrame.new(camPos + followOffset, camPos + camRot.LookVector * 5)
+    end
 end)
 
 -- Кнопка FreeCam
 Button.MouseButton1Click:Connect(function()
-	if not controllingCamera then
-		hrp.Anchored = true
-		humanoid.PlatformStand = true
+    if not controllingCamera then
+        hrp.Anchored = true
+        humanoid.PlatformStand = true
+        camera.CameraSubject = nil  
+        camera.CameraType = Enum.CameraType.Scriptable  
 
-		camera.CameraSubject = nil
-		camera.CameraType = Enum.CameraType.Scriptable
+        camPos = hrp.Position - hrp.CFrame.LookVector * 5 + Vector3.new(0,2,0)
+        local lookAt = hrp.Position + hrp.CFrame.LookVector * 10
+        camRot = CFrame.new(camPos, lookAt) - camPos
 
-		camPos = camera.CFrame.Position
-		yaw, pitch = 0, 0
-		camRot = CFrame.new()
+        local dir = (lookAt - camPos).Unit
+        yaw = math.deg(math.atan2(-dir.X, -dir.Z))
+        pitch = math.deg(math.asin(dir.Y))
 
-		controllingCamera = true
-		Button.Text = "Back"
-	else
-		camera.CameraSubject = humanoid
-		camera.CameraType = Enum.CameraType.Custom
+        controllingCamera = true  
+        Button.Text = "Back"  
+    else  
+        camera.CameraSubject = humanoid  
+        camera.CameraType = Enum.CameraType.Custom  
 
-		hrp.Anchored = false
-		humanoid.PlatformStand = false
+        hrp.Anchored = false  
+        humanoid.PlatformStand = false  
 
-		controllingCamera = false
-		Button.Text = "FreeCam"
-	end
+        controllingCamera = false  
+        Button.Text = "FreeCam"  
+    end
 end)
 end)
